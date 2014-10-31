@@ -1,0 +1,5 @@
+ ✔ Gestion des liens @done (14-10-31 14:51)
+ ✔ Gestion des émoticônes @done (14-10-31 15:37)
+ ✔ Liste des participants @done (14-10-31 14:51)
+ ☐ Signal de déconnexion
+ ☐ Historique

@@ -1,0 +1,15 @@
+#Client
+-main client.Main
+-cp src
+-lib js-kit
+-js bin/public/main.js
+
+--next
+#Server
+-main server.Main
+-cp src
+-lib js-kit
+-js bin/index.js
+
+--next
+-cmd rsync -r bin/ kpadmin@192.168.2.79:/home/kpadmin/testSocket
