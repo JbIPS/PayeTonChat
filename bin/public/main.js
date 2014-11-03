@@ -161,11 +161,18 @@ client.Main = function() {
 		var message = "Bienvenue sur PayeTonChat !";
 		_g.log(message,{ prepend : true});
 		var usernames = data.usernames;
+		var history = data.history;
 		var _g1 = 0;
 		while(_g1 < usernames.length) {
 			var u = usernames[_g1];
 			++_g1;
 			_g.addParticipantsMessage(u);
+		}
+		var _g11 = 0;
+		while(_g11 < history.length) {
+			var h = history[_g11];
+			++_g11;
+			_g.addChatMessage(h);
 		}
 	});
 	this.socket.on("new message",function(data1) {

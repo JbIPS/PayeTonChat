@@ -3,8 +3,12 @@ package server;
 import js.Node;
 import js.npm.connect.Static;
 import js.npm.Express;
+import js.npm.mongoose.Mongoose;
+import js.npm.Mongoose.mongoose;
 import js.npm.socketio.Socket;
 import js.support.DynamicObject;
+
+import server.ChatHistory.ChatHistoryManager;
 
 class Main
 {
@@ -17,6 +21,10 @@ class Main
 		var app = new Express();
 		var server = js.node.Http.createServer(app);
 		var io = js.Node.require('socket.io').listen(server);
+
+	    // connect
+		var db: Mongoose = mongoose.connect("mongodb://localhost/chat");
+		var history = ChatHistoryManager.build(db, "ChatHistory");
 
 		var port = 3000;
 
@@ -35,9 +43,15 @@ class Main
 			// when the client emits 'new message', this listens and executes
 			socket.on('new message', function (data) {
 				// we tell the client to execute 'new message'
+				var user: String = socket.username;
+				//trace("Username: "+user);
 				socket.broadcast.emit('new message', {
-					username: socket.username,
+					username: user,
 					message: data
+				});
+				history.create({username: user, message: data}, function(err, doc){
+					if(err != null)
+						trace("Can't save chat history: "+err);
 				});
 			});
 			// when the client emits 'add user', this listens and executes
@@ -48,8 +62,15 @@ class Main
 				usernames.push(username);
 				++numUsers;
 				addedUser = true;
-				socket.emit('login', {
-					usernames: usernames
+				history.find({}, function(err, results){
+					if(err != null)
+						trace("Can't get chat history: "+err);
+					else{
+						socket.emit('login', {
+							usernames: usernames,
+							history: results.slice(0, 51)
+						});
+					}
 				});
 				// echo globally (all clients) that a person has connected
 				socket.broadcast.emit('user joined', {

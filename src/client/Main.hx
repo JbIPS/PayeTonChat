@@ -94,8 +94,11 @@ class Main
 				prepend: true
 			});
 			var usernames: Array<String> = data.usernames;
+			var history: Array<{username: String, message: String}> = data.history;
 			for(u in usernames)
 				addParticipantsMessage(u);
+			for(h in history)
+				addChatMessage(h);
 		});
 		// Whenever the server emits 'new message', update the chat body
 		socket.on('new message', function (data) {
