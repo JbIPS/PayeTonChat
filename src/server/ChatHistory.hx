@@ -4,8 +4,9 @@ import js.npm.mongoose.macro.Manager;
 import js.npm.mongoose.macro.Model;
 
 typedef ChatHistoryData = {
-	var username: String;
-	var message: String;
+	username: String,
+	message: String,
+	?whisperTarget: String
 }
 
 

@@ -11,7 +11,16 @@ var EReg = function(r,opt) {
 };
 EReg.__name__ = true;
 EReg.prototype = {
-	__class__: EReg
+	match: function(s) {
+		if(this.r.global) this.r.lastIndex = 0;
+		this.r.m = this.r.exec(s);
+		this.r.s = s;
+		return this.r.m != null;
+	}
+	,matched: function(n) {
+		if(this.r.m != null && n >= 0 && n < this.r.m.length) return this.r.m[n]; else throw "EReg::matched";
+	}
+	,__class__: EReg
 };
 var HxOverrides = function() { };
 HxOverrides.__name__ = true;
@@ -32,6 +41,23 @@ HxOverrides.remove = function(a,obj) {
 	if(i == -1) return false;
 	a.splice(i,1);
 	return true;
+};
+HxOverrides.iter = function(a) {
+	return { cur : 0, arr : a, hasNext : function() {
+		return this.cur < this.arr.length;
+	}, next : function() {
+		return this.arr[this.cur++];
+	}};
+};
+var Lambda = function() { };
+Lambda.__name__ = true;
+Lambda.find = function(it,f) {
+	var $it0 = $iterator(it)();
+	while( $it0.hasNext() ) {
+		var v = $it0.next();
+		if(f(v)) return v;
+	}
+	return null;
 };
 Math.__name__ = true;
 var Reflect = function() { };
@@ -172,7 +198,7 @@ server.ChatHistory = function() { };
 server.ChatHistory.__name__ = true;
 server.ChatHistory.get_Schema = function() {
 	if(server.ChatHistory._schema == null) {
-		server.ChatHistory._schema = new (Schema__8||require("mongoose").Schema)({ message : { type : String}, username : { type : String}});
+		server.ChatHistory._schema = new (Schema__8||require("mongoose").Schema)({ message : { type : String}, username : { type : String}, whisperTarget : { type : String, optional : true}});
 		var proto1 = server.ChatHistory.prototype;
 		var _g = 0;
 		var _g1 = Reflect.fields(proto1);
@@ -231,30 +257,40 @@ server.Main = function() {
 	}(this)));
 	var usernames = new Array();
 	var numUsers = 0;
+	var whisperRegExp = new EReg("@(.+)?:","");
 	io.on("connection",function(socket) {
 		var addedUser = false;
 		socket.on("new message",function(data) {
 			var user = socket.username;
-			socket.broadcast.emit("new message",{ username : user, message : data});
-			history.create({ username : user, message : data},function(err,doc) {
+			var target = null;
+			if(whisperRegExp.match(data)) {
+				target = Lambda.find(usernames,function(user1) {
+					return user1.toLowerCase() == whisperRegExp.matched(1).toLowerCase();
+				});
+				socket.to(target).emit("new message",{ username : user, message : data});
+			} else socket.broadcast.emit("new message",{ username : user, message : data});
+			if(user != null) history.create({ username : user, message : data, whisperTarget : target},function(err,doc) {
 				if(err != null) console.log("Can't save chat history: " + err);
-			});
+			}); else console.log("User is null for message: " + data);
 		});
 		socket.on("add user",function(username) {
 			socket.username = username;
+			socket.join(username);
 			usernames.push(username);
 			++numUsers;
 			addedUser = true;
 			history.find({ },function(err1,results) {
-				if(err1 != null) console.log("Can't get chat history: " + err1); else socket.emit("login",{ usernames : usernames, history : results.slice(0,51)});
+				if(err1 != null) console.log("Can't get chat history: " + err1); else socket.emit("login",{ usernames : usernames, history : results.filter(function(h) {
+					return h.whisperTarget == null || (h.whisperTarget == username || h.username == username);
+				}).slice(-50)});
 			});
 			socket.broadcast.emit("user joined",{ username : socket.username, numUsers : numUsers});
 		});
 		socket.on("typing",function() {
-			socket.broadcast.emit("typing",{ username : socket.username});
+			socket.broadcast.emit("typing",{ username : socket.username != null?socket.username:"unknown"});
 		});
 		socket.on("stop typing",function() {
-			socket.broadcast.emit("stop typing",{ username : socket.username});
+			socket.broadcast.emit("stop typing",{ username : socket.username != null?socket.username:"unknown"});
 		});
 		socket.on("disconnect",function() {
 			if(addedUser) {
@@ -273,6 +309,9 @@ server.Main.main = function() {
 server.Main.prototype = {
 	__class__: server.Main
 };
+function $iterator(o) { if( o instanceof Array ) return function() { return HxOverrides.iter(o); }; return typeof(o.iterator) == 'function' ? $bind(o,o.iterator) : o.iterator; }
+var $_, $fid = 0;
+function $bind(o,m) { if( m == null ) return null; if( m.__id__ == null ) m.__id__ = $fid++; var f; if( o.hx__closures__ == null ) o.hx__closures__ = {}; else f = o.hx__closures__[m.__id__]; if( f == null ) { f = function(){ return f.method.apply(f.scope, arguments); }; f.scope = o; f.method = m; o.hx__closures__[m.__id__] = f; } return f; }
 if(Array.prototype.indexOf) HxOverrides.indexOf = function(a,o,i) {
 	return Array.prototype.indexOf.call(a,o,i);
 };
@@ -288,6 +327,17 @@ Math.isNaN = function(i1) {
 String.prototype.__class__ = String;
 String.__name__ = true;
 Array.__name__ = true;
+if(Array.prototype.filter == null) Array.prototype.filter = function(f1) {
+	var a1 = [];
+	var _g11 = 0;
+	var _g2 = this.length;
+	while(_g11 < _g2) {
+		var i1 = _g11++;
+		var e = this[i1];
+		if(f1(e)) a1.push(e);
+	}
+	return a1;
+};
 var Crypto__21 = require("crypto");
 var EventEmitter__0 = require("events").EventEmitter;
 var Http__18 = require("http");

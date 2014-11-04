@@ -1,5 +1,7 @@
  ✔ Gestion des liens @done (14-10-31 14:51)
  ✔ Gestion des émoticônes @done (14-10-31 15:37)
  ✔ Liste des participants @done (14-10-31 14:51)
- ☐ Signal de déconnexion
- ☐ Historique
+ ✔ Signal de déconnexion @done (14-11-04 13:47)
+ ✔ Historique @done (14-11-03 14:49)
+ ☐ Clic droit sur un utilisateur pour chuchoter
+ ☐ afficher les smileys dispos

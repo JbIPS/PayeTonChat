@@ -1,6 +1,7 @@
 package client;
 
 import js.browser.SocketIo;
+import js.html.Audio;
 import js.html.Element;
 import js.JQuery;
 import js.Lib;
@@ -32,6 +33,7 @@ class Main
 
 	var urlRegExp: EReg;
 	var smileyRegExp: EReg;
+	var whisperRegExp: EReg;
 
 	var socket: Socket;
 
@@ -53,6 +55,7 @@ class Main
 
 		urlRegExp = ~/(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
 		smileyRegExp = ~/(\]:\)|[:;][\S]+|8\)|:.+:|\S\.\S{1,2}|<3\)?)/g;
+		whisperRegExp = ~/@(.+)?:/;
 
 		// Keyboard events
 		new JQuery(js.Browser.window).keydown(function (event) {
@@ -102,18 +105,29 @@ class Main
 		});
 		// Whenever the server emits 'new message', update the chat body
 		socket.on('new message', function (data) {
+			var sound = new Audio();
+			sound.src = "sounds/new_msg.mp3";
+
 			addChatMessage(data);
+
+			sound.play();
 		});
 		// Whenever the server emits 'user joined', log it in the chat body
 		socket.on('user joined', function (data) {
 			log(data.username + ' joined');
+			var sound = new Audio();
+			sound.src = "sounds/new_connection.mp3";
 			addParticipantsMessage(data.username);
+			sound.play();
 		});
 		// Whenever the server emits 'user left', log it in the chat body
 		socket.on('user left', function (data) {
 			log(data.username + ' left');
+			var sound = new Audio();
+			sound.src = "sounds/user_leaving.mp3";
 			addParticipantsMessage(data.username, false);
 			removeChatTyping(data);
+			sound.play();
 		});
 		// Whenever the server emits 'typing', show the typing message
 		socket.on('typing', function (data) {
@@ -140,7 +154,7 @@ class Main
 		username = cleanInput(usernameInput.val().trim());
 
 		// If the username is valid
-		if (username != null) {
+		if (username != "") {
 			loginPage.fadeOut();
 			chatPage.show();
 			loginPage.off('click');
@@ -148,6 +162,8 @@ class Main
 			// Tell the server your username
 			socket.emit('add user', username);
 		}
+		else
+			username = null;
 	}
 
 	// Sends a chat message
@@ -159,10 +175,13 @@ class Main
 		// if there is a non-empty message and a socket connection
 		if (message != null && connected) {
 			inputMessage.val('');
-			addChatMessage({
+			var data: Dynamic = {
 				username: username,
-				message: message
-			});
+				message: message,
+			};
+			if(whisperRegExp.match(message))
+				data.whisperTarget = whisperRegExp.matched(1);
+			addChatMessage(data);
 			// tell server to execute 'new message' and send along one parameter
 			socket.emit('new message', message);
 		}
@@ -182,12 +201,19 @@ class Main
 			options = {};
 
 		if (typingMessages.length != 0) {
-		options.fade = false;
-		typingMessages.remove();
+			options.fade = false;
+			typingMessages.remove();
 		}
 		var usernameDiv = new JQuery('<span class="username"/>')
 		.text(data.username)
 		.css('color', getUsernameColor(data.username));
+		// Found whisper
+		if(whisperRegExp.match(data.message)){
+			data.message = whisperRegExp.replace(data.message, "");
+			if(Reflect.hasField(data, "whisperTarget") && data.whisperTarget != null)
+				data.message = data.whisperTarget+" > "+data.message;
+			options.type = "whisper";
+		}
 		// Found smiley
 		var msg = smileyRegExp.map(data.message, function(r){
           	return switch(r.matched(0)){
@@ -238,6 +264,8 @@ class Main
 		.data('username', data.username)
 		.addClass(typingClass)
 		.append(usernameDiv).append(messageBodyDiv);
+		if(Reflect.hasField(options, "type"))
+			messageDiv.addClass(options.type);
 		addMessageElement(messageDiv, options);
 	}
 

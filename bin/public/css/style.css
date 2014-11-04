@@ -104,6 +104,9 @@ ul {
 .messageBody{
     vertical-align: top;
 }
+.message.whisper .messageBody{
+    color: blue;
+}
 .username {
     float: left;
     font-weight: 700;

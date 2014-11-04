@@ -8,7 +8,9 @@ import js.npm.Mongoose.mongoose;
 import js.npm.socketio.Socket;
 import js.support.DynamicObject;
 
-import server.ChatHistory.ChatHistoryManager;
+import server.ChatHistory;
+
+using Lambda;
 
 class Main
 {
@@ -38,26 +40,43 @@ class Main
 		// usernames which are currently connected to the chat
 		var usernames = new Array<String>();
 		var numUsers = 0;
+		var whisperRegExp = ~/@(.+)?:/;
+
 		io.on('connection', function (socket: Socket) {
 			var addedUser = false;
 			// when the client emits 'new message', this listens and executes
 			socket.on('new message', function (data) {
 				// we tell the client to execute 'new message'
 				var user: String = socket.username;
-				//trace("Username: "+user);
-				socket.broadcast.emit('new message', {
-					username: user,
-					message: data
-				});
-				history.create({username: user, message: data}, function(err, doc){
-					if(err != null)
-						trace("Can't save chat history: "+err);
-				});
+				var target: String = null;
+				if(whisperRegExp.match(data)){
+					target = usernames.find(function(user: String) return user.toLowerCase() == whisperRegExp.matched(1).toLowerCase());
+					socket.to(target).emit('new message', {
+						username: user,
+						message: data
+					});
+				}
+				else
+					socket.broadcast.emit('new message', {
+						username: user,
+						message: data
+					});
+
+				// TODO Ask for user
+				if(user != null){
+					history.create({username: user, message: data, whisperTarget: target}, function(err, doc){
+						if(err != null)
+							trace("Can't save chat history: "+err);
+					});
+				}
+				else
+					trace("User is null for message: "+data);
 			});
 			// when the client emits 'add user', this listens and executes
 			socket.on('add user', function (username) {
 				// we store the username in the socket session for this client
 				socket.username = username;
+				socket.join(username);
 				// add the client's username to the global list
 				usernames.push(username);
 				++numUsers;
@@ -66,9 +85,11 @@ class Main
 					if(err != null)
 						trace("Can't get chat history: "+err);
 					else{
+						//trace("Result: "+results);
+						//trace("Result (0-50): "+results.slice(-50));
 						socket.emit('login', {
 							usernames: usernames,
-							history: results.slice(0, 51)
+							history: results.filter(function(h: ChatHistory) return h.whisperTarget == null || (h.whisperTarget == username || h.username == username)).slice(-50)
 						});
 					}
 				});
@@ -81,13 +102,13 @@ class Main
 			// when the client emits 'typing', we broadcast it to others
 			socket.on('typing', function () {
 				socket.broadcast.emit('typing', {
-					username: socket.username
+					username: socket.username != null ? socket.username : "unknown"
 				});
 			});
 			// when the client emits 'stop typing', we broadcast it to others
 			socket.on('stop typing', function () {
 				socket.broadcast.emit('stop typing', {
-					username: socket.username
+					username: socket.username != null ? socket.username : "unknown"
 				});
 			});
 			// when the user disconnects.. perform this

@@ -44,6 +44,9 @@ EReg.prototype = {
 			return b1;
 		}
 	}
+	,replace: function(s,by) {
+		return s.replace(this.r,by);
+	}
 	,map: function(s,f) {
 		var offset = 0;
 		var buf = new StringBuf();
@@ -137,6 +140,7 @@ client.Main = function() {
 	this.socket = io.connect();
 	this.urlRegExp = new EReg("(\\b(https?|ftp|file)://[-A-Z0-9+&@#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|])","ig");
 	this.smileyRegExp = new EReg("(\\]:\\)|[:;][\\S]+|8\\)|:.+:|\\S\\.\\S{1,2}|<3\\)?)","g");
+	this.whisperRegExp = new EReg("@(.+)?:","");
 	new jQuery(window).keydown(function(event) {
 		if(!(event.ctrlKey || event.metaKey || event.altKey)) _g.currentInput.focus();
 		if(event.which == 13) {
@@ -176,16 +180,25 @@ client.Main = function() {
 		}
 	});
 	this.socket.on("new message",function(data1) {
+		var sound = new Audio();
+		sound.src = "sounds/new_msg.mp3";
 		_g.addChatMessage(data1);
+		sound.play();
 	});
 	this.socket.on("user joined",function(data2) {
 		_g.log(data2.username + " joined");
+		var sound1 = new Audio();
+		sound1.src = "sounds/new_connection.mp3";
 		_g.addParticipantsMessage(data2.username);
+		sound1.play();
 	});
 	this.socket.on("user left",function(data3) {
 		_g.log(data3.username + " left");
+		var sound2 = new Audio();
+		sound2.src = "sounds/user_leaving.mp3";
 		_g.addParticipantsMessage(data3.username,false);
 		_g.removeChatTyping(data3);
+		sound2.play();
 	});
 	this.socket.on("typing",function(data4) {
 		_g.addChatTyping(data4);
@@ -207,20 +220,22 @@ client.Main.prototype = {
 	}
 	,setUsername: function() {
 		this.username = this.cleanInput(StringTools.trim(this.usernameInput.val()));
-		if(this.username != null) {
+		if(this.username != "") {
 			this.loginPage.fadeOut();
 			this.chatPage.show();
 			this.loginPage.off("click");
 			this.currentInput = this.inputMessage.focus();
 			this.socket.emit("add user",this.username);
-		}
+		} else this.username = null;
 	}
 	,sendMessage: function() {
 		var message = this.inputMessage.val();
 		message = this.cleanInput(message);
 		if(message != null && this.connected) {
 			this.inputMessage.val("");
-			this.addChatMessage({ username : this.username, message : message});
+			var data = { username : this.username, message : message};
+			if(this.whisperRegExp.match(message)) data.whisperTarget = this.whisperRegExp.matched(1);
+			this.addChatMessage(data);
 			this.socket.emit("new message",message);
 		}
 	}
@@ -236,6 +251,11 @@ client.Main.prototype = {
 			typingMessages.remove();
 		}
 		var usernameDiv = new jQuery("<span class=\"username\"/>").text(data.username).css("color",this.getUsernameColor(data.username));
+		if(this.whisperRegExp.match(data.message)) {
+			data.message = this.whisperRegExp.replace(data.message,"");
+			if(Object.prototype.hasOwnProperty.call(data,"whisperTarget") && data.whisperTarget != null) data.message = Std.string(data.whisperTarget) + " > " + Std.string(data.message);
+			options.type = "whisper";
+		}
 		var msg = this.smileyRegExp.map(data.message,function(r) {
 			var _g = r.matched(0);
 			switch(_g) {
@@ -312,6 +332,7 @@ client.Main.prototype = {
 		var typingClass;
 		if(data.typing) typingClass = "typing"; else typingClass = "";
 		var messageDiv = new jQuery("<li class=\"message\"/>").data("username",data.username).addClass(typingClass).append(usernameDiv).append(messageBodyDiv);
+		if(Object.prototype.hasOwnProperty.call(options,"type")) messageDiv.addClass(options.type);
 		this.addMessageElement(messageDiv,options);
 	}
 	,addChatTyping: function(data) {
