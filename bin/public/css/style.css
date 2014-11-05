@@ -104,6 +104,12 @@ ul {
 .messageBody{
     vertical-align: top;
 }
+.whisper{
+    background: rgba(200,200,200,0.2);
+    border-radius: 9px;
+    width: 100%;
+    padding: 5px;
+}
 .message.whisper .messageBody{
     color: blue;
 }
@@ -129,6 +135,29 @@ ul {
     position: absolute;
     right: 0;
     width: 100%;
+    background-color: #EEEEEE;
+}
+.inputMessage:focus{
+    background-color: white;
+}
+.smileyButton{
+    width: 3%;
+    height: 4%;
+    position: absolute;
+    bottom: 2.7%;
+    right: 1%;
+    cursor: pointer;
+}
+.smileyButton img{
+    width: 100%;
+}
+.smileyContainer{
+    width: 13%;
+    height: 18%;
+    background: red;
+    position: absolute;
+    bottom: 8%;
+    right: 1%;
 }
 
 /* Images */
@@ -156,4 +185,11 @@ img.smiley{
 
 .participants li span{
     margin-right: 8px;
+}
+.participants li a{
+    color: black;
+    cursor: pointer;
+}
+.participants li a:hover{
+    text-decoration: none;
 }

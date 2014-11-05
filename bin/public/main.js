@@ -103,6 +103,9 @@ StringBuf.prototype = {
 };
 var StringTools = function() { };
 StringTools.__name__ = true;
+StringTools.startsWith = function(s,start) {
+	return s.length >= start.length && HxOverrides.substr(s,0,start.length) == start;
+};
 StringTools.isSpace = function(s,pos) {
 	var c = HxOverrides.cca(s,pos);
 	return c > 8 && c < 14 || c == 32;
@@ -122,6 +125,9 @@ StringTools.rtrim = function(s) {
 StringTools.trim = function(s) {
 	return StringTools.ltrim(StringTools.rtrim(s));
 };
+StringTools.replace = function(s,sub,by) {
+	return s.split(sub).join(by);
+};
 var client = {};
 client.Main = function() {
 	this.typing = false;
@@ -136,11 +142,15 @@ client.Main = function() {
 	this.loginPage = new jQuery(".login.page");
 	this.chatPage = new jQuery(".chat.page");
 	this.participantList = new jQuery(".participants ul");
+	this.smileyContainer = new jQuery(".smileyContainer");
+	new jQuery(".smileyButton").click(function(e) {
+		_g.smileyContainer.fadeIn();
+	});
 	this.currentInput = this.usernameInput.focus();
 	this.socket = io.connect();
 	this.urlRegExp = new EReg("(\\b(https?|ftp|file)://[-A-Z0-9+&@#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|])","ig");
 	this.smileyRegExp = new EReg("(\\]:\\)|[:;][\\S]+|8\\)|:.+:|\\S\\.\\S{1,2}|<3\\)?)","g");
-	this.whisperRegExp = new EReg("@(.+)?:","");
+	this.whisperRegExp = new EReg("^@(.+?):","");
 	new jQuery(window).keydown(function(event) {
 		if(!(event.ctrlKey || event.metaKey || event.altKey)) _g.currentInput.focus();
 		if(event.which == 13) {
@@ -152,7 +162,7 @@ client.Main = function() {
 		}
 	});
 	this.inputMessage.on("input",function(_) {
-		_g.updateTyping();
+		if(this.value.charAt(0) != "@") _g.updateTyping();
 	});
 	this.loginPage.click(function() {
 		_g.currentInput.focus();
@@ -161,7 +171,6 @@ client.Main = function() {
 		_g.inputMessage.focus();
 	});
 	this.socket.on("login",function(data) {
-		_g.connected = true;
 		var message = "Bienvenue sur PayeTonChat !";
 		_g.log(message,{ prepend : true});
 		var usernames = data.usernames;
@@ -200,11 +209,24 @@ client.Main = function() {
 		_g.removeChatTyping(data3);
 		sound2.play();
 	});
+	this.socket.on("new action",function(action) {
+		_g.log(action);
+	});
 	this.socket.on("typing",function(data4) {
 		_g.addChatTyping(data4);
 	});
 	this.socket.on("stop typing",function(data5) {
 		_g.removeChatTyping(data5);
+	});
+	this.socket.on("disconnect",function(data6) {
+		console.log("Unable to reach the server");
+		_g.connected = false;
+	});
+	this.socket.on("connect",function(data7) {
+		console.log("Connection");
+		if(_g.username != null) _g.socket.emit("socket reconnect",_g.username,function() {
+			_g.connected = true;
+		});
 	});
 };
 client.Main.__name__ = true;
@@ -214,7 +236,15 @@ client.Main.main = function() {
 client.Main.prototype = {
 	addParticipantsMessage: function(name,connection) {
 		if(connection == null) connection = true;
-		if(connection) this.participantList.append("<li><span class='glyphicon glyphicon-user'></span>" + name + "</li>"); else this.participantList.children("li").each(function() {
+		var _g = this;
+		if(connection) {
+			var li = new jQuery("<li/>");
+			new jQuery("<a><span class='glyphicon glyphicon-user'></span>" + name + "</a>").click(function(e) {
+				if(this.textContent == _g.username) _g.inputMessage.val("\\u "); else _g.inputMessage.val("@" + Std.string(this.textContent) + ": ");
+				_g.inputMessage.focus();
+			}).appendTo(li);
+			this.participantList.append(li);
+		} else this.participantList.children("li").each(function() {
 			if(this.textContent == name) this.remove();
 		});
 	}
@@ -226,6 +256,7 @@ client.Main.prototype = {
 			this.loginPage.off("click");
 			this.currentInput = this.inputMessage.focus();
 			this.socket.emit("add user",this.username);
+			this.connected = true;
 		} else this.username = null;
 	}
 	,sendMessage: function() {
@@ -234,9 +265,15 @@ client.Main.prototype = {
 		if(message != null && this.connected) {
 			this.inputMessage.val("");
 			var data = { username : this.username, message : message};
-			if(this.whisperRegExp.match(message)) data.whisperTarget = this.whisperRegExp.matched(1);
-			this.addChatMessage(data);
-			this.socket.emit("new message",message);
+			if(StringTools.startsWith(message,"\\u")) {
+				var msg = StringTools.replace(message,"\\u",this.username);
+				this.socket.emit("new action",msg);
+				this.log(msg);
+			} else {
+				if(this.whisperRegExp.match(message)) data.whisperTarget = this.whisperRegExp.matched(1);
+				this.addChatMessage(data);
+				this.socket.emit("new message",message);
+			}
 		}
 	}
 	,log: function(message,options) {

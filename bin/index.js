@@ -84,6 +84,11 @@ Reflect.deleteField = function(o,field) {
 	delete(o[field]);
 	return true;
 };
+var Std = function() { };
+Std.__name__ = true;
+Std.string = function(s) {
+	return js.Boot.__string_rec(s,"");
+};
 var ValueType = { __ename__ : true, __constructs__ : ["TNull","TInt","TFloat","TBool","TObject","TFunction","TClass","TEnum","TUnknown"] };
 ValueType.TNull = ["TNull",0];
 ValueType.TNull.__enum__ = ValueType;
@@ -131,6 +136,75 @@ Type["typeof"] = function(v) {
 	}
 };
 var js = {};
+js.Boot = function() { };
+js.Boot.__name__ = true;
+js.Boot.__string_rec = function(o,s) {
+	if(o == null) return "null";
+	if(s.length >= 5) return "<...>";
+	var t = typeof(o);
+	if(t == "function" && (o.__name__ || o.__ename__)) t = "object";
+	switch(t) {
+	case "object":
+		if(o instanceof Array) {
+			if(o.__enum__) {
+				if(o.length == 2) return o[0];
+				var str = o[0] + "(";
+				s += "\t";
+				var _g1 = 2;
+				var _g = o.length;
+				while(_g1 < _g) {
+					var i = _g1++;
+					if(i != 2) str += "," + js.Boot.__string_rec(o[i],s); else str += js.Boot.__string_rec(o[i],s);
+				}
+				return str + ")";
+			}
+			var l = o.length;
+			var i1;
+			var str1 = "[";
+			s += "\t";
+			var _g2 = 0;
+			while(_g2 < l) {
+				var i2 = _g2++;
+				str1 += (i2 > 0?",":"") + js.Boot.__string_rec(o[i2],s);
+			}
+			str1 += "]";
+			return str1;
+		}
+		var tostr;
+		try {
+			tostr = o.toString;
+		} catch( e ) {
+			return "???";
+		}
+		if(tostr != null && tostr != Object.toString) {
+			var s2 = o.toString();
+			if(s2 != "[object Object]") return s2;
+		}
+		var k = null;
+		var str2 = "{\n";
+		s += "\t";
+		var hasp = o.hasOwnProperty != null;
+		for( var k in o ) {
+		if(hasp && !o.hasOwnProperty(k)) {
+			continue;
+		}
+		if(k == "prototype" || k == "__class__" || k == "__super__" || k == "__interfaces__" || k == "__properties__") {
+			continue;
+		}
+		if(str2.length != 2) str2 += ", \n";
+		str2 += s + k + " : " + js.Boot.__string_rec(o[k],s);
+		}
+		s = s.substring(1);
+		str2 += "\n" + s + "}";
+		return str2;
+	case "function":
+		return "<function>";
+	case "string":
+		return o;
+	default:
+		return String(o);
+	}
+};
 js.Node = function() { };
 js.Node.__name__ = true;
 js.npm = {};
@@ -257,28 +331,36 @@ server.Main = function() {
 	}(this)));
 	var usernames = new Array();
 	var numUsers = 0;
-	var whisperRegExp = new EReg("@(.+)?:","");
+	var whisperRegExp = new EReg("^@(.+)?: ","");
 	io.on("connection",function(socket) {
 		var addedUser = false;
 		socket.on("new message",function(data) {
+			console.log("New msg from " + Std.string(socket.username) + ": " + data);
 			var user = socket.username;
 			var target = null;
 			if(whisperRegExp.match(data)) {
 				target = Lambda.find(usernames,function(user1) {
 					return user1.toLowerCase() == whisperRegExp.matched(1).toLowerCase();
 				});
+				console.log("match! " + whisperRegExp.matched(1));
+				console.log("users: " + Std.string(usernames));
 				socket.to(target).emit("new message",{ username : user, message : data});
 			} else socket.broadcast.emit("new message",{ username : user, message : data});
 			if(user != null) history.create({ username : user, message : data, whisperTarget : target},function(err,doc) {
 				if(err != null) console.log("Can't save chat history: " + err);
 			}); else console.log("User is null for message: " + data);
 		});
+		socket.on("new action",function(action) {
+			socket.broadcast.emit("new action",action);
+		});
 		socket.on("add user",function(username) {
 			socket.username = username;
 			socket.join(username);
-			usernames.push(username);
-			++numUsers;
-			addedUser = true;
+			if(HxOverrides.indexOf(usernames,username,0) == -1) {
+				usernames.push(username);
+				++numUsers;
+				addedUser = true;
+			} else console.log("Already taken username " + username);
 			history.find({ },function(err1,results) {
 				if(err1 != null) console.log("Can't get chat history: " + err1); else socket.emit("login",{ usernames : usernames, history : results.filter(function(h) {
 					return h.whisperTarget == null || (h.whisperTarget == username || h.username == username);
@@ -293,11 +375,18 @@ server.Main = function() {
 			socket.broadcast.emit("stop typing",{ username : socket.username != null?socket.username:"unknown"});
 		});
 		socket.on("disconnect",function() {
-			if(addedUser) {
-				var x = socket.username;
-				HxOverrides.remove(usernames,x);
-				--numUsers;
-				socket.broadcast.emit("user left",{ username : socket.username, numUsers : numUsers});
+			console.log("Disconnect: " + Std.string(socket.username) + ". Added user ? " + (addedUser == null?"null":"" + addedUser));
+			var x = socket.username;
+			HxOverrides.remove(usernames,x);
+			--numUsers;
+			socket.broadcast.emit("user left",{ username : socket.username, numUsers : numUsers});
+		});
+		socket.on("socket reconnect",function(username1,cb) {
+			console.log("Reconnect: " + username1);
+			if(username1 != null) {
+				socket.username = username1;
+				usernames.push(username1);
+				cb();
 			}
 		});
 	});

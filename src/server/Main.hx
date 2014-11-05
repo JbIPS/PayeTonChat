@@ -40,17 +40,20 @@ class Main
 		// usernames which are currently connected to the chat
 		var usernames = new Array<String>();
 		var numUsers = 0;
-		var whisperRegExp = ~/@(.+)?:/;
+		var whisperRegExp = ~/^@(.+)?: /;
 
 		io.on('connection', function (socket: Socket) {
 			var addedUser = false;
 			// when the client emits 'new message', this listens and executes
 			socket.on('new message', function (data) {
 				// we tell the client to execute 'new message'
+				trace("New msg from "+socket.username+": "+data);
 				var user: String = socket.username;
 				var target: String = null;
 				if(whisperRegExp.match(data)){
 					target = usernames.find(function(user: String) return user.toLowerCase() == whisperRegExp.matched(1).toLowerCase());
+					trace("match! "+whisperRegExp.matched(1));
+					trace("users: "+usernames);
 					socket.to(target).emit('new message', {
 						username: user,
 						message: data
@@ -72,15 +75,25 @@ class Main
 				else
 					trace("User is null for message: "+data);
 			});
+
+			socket.on("new action", function(action: String){
+				socket.broadcast.emit("new action", action);
+			});
+
 			// when the client emits 'add user', this listens and executes
 			socket.on('add user', function (username) {
 				// we store the username in the socket session for this client
 				socket.username = username;
 				socket.join(username);
 				// add the client's username to the global list
-				usernames.push(username);
-				++numUsers;
-				addedUser = true;
+				if(usernames.indexOf(username) == -1){
+					usernames.push(username);
+					++numUsers;
+					addedUser = true;
+				}
+				else{
+					trace("Already taken username "+username);
+				}
 				history.find({}, function(err, results){
 					if(err != null)
 						trace("Can't get chat history: "+err);
@@ -114,14 +127,21 @@ class Main
 			// when the user disconnects.. perform this
 			socket.on('disconnect', function () {
 				// remove the username from global usernames list
-				if (addedUser) {
-					usernames.remove(socket.username);
-					--numUsers;
-					// echo globally that this client has left
-					socket.broadcast.emit('user left', {
-						username: socket.username,
-						numUsers: numUsers
-					});
+				trace("Disconnect: "+socket.username+". Added user ? "+addedUser);
+				usernames.remove(socket.username);
+				--numUsers;
+				// echo globally that this client has left
+				socket.broadcast.emit('user left', {
+					username: socket.username,
+					numUsers: numUsers
+				});
+			});
+			socket.on('socket reconnect', function(username: String, cb: Void->Void){
+				trace("Reconnect: "+username);
+				if(username != null){
+					socket.username = username;
+					usernames.push(username);
+					cb();
 				}
 			});
 		});

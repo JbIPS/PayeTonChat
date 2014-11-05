@@ -24,6 +24,7 @@ class Main
 	var loginPage: JQuery;
 	var chatPage: JQuery;
 	var participantList: JQuery;
+	var smileyContainer: JQuery;
 
 	var username: String;
 	var connected = false;
@@ -49,13 +50,18 @@ class Main
 		loginPage = new JQuery('.login.page');
 		chatPage = new JQuery('.chat.page');
 		participantList = new JQuery(".participants ul");
+		smileyContainer = new JQuery(".smileyContainer");
+		new JQuery(".smileyButton").click(function(e){
+			smileyContainer.fadeIn();
+		});
+
 
 		currentInput = usernameInput.focus();
 		socket = SocketIo.connect();
 
 		urlRegExp = ~/(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
 		smileyRegExp = ~/(\]:\)|[:;][\S]+|8\)|:.+:|\S\.\S{1,2}|<3\)?)/g;
-		whisperRegExp = ~/@(.+)?:/;
+		whisperRegExp = ~/^@(.+?):/;
 
 		// Keyboard events
 		new JQuery(js.Browser.window).keydown(function (event) {
@@ -76,7 +82,8 @@ class Main
 		});
 
 		inputMessage.on('input', function(_) {
-			updateTyping();
+			if(Lib.self.value.charAt(0) != "@")
+				updateTyping();
 		});
 		// Click events
 		// Focus input when clicking anywhere on login page
@@ -90,7 +97,7 @@ class Main
 		// Socket events
 		// Whenever the server emits 'login', log the login message
 		socket.on('login', function (data) {
-			connected = true;
+			//connected = true;
 			// Display the welcome message
 			var message = "Bienvenue sur PayeTonChat !";
 			log(message, {
@@ -129,6 +136,9 @@ class Main
 			removeChatTyping(data);
 			sound.play();
 		});
+		socket.on("new action", function(action: String){
+			log(action);
+		});
 		// Whenever the server emits 'typing', show the typing message
 		socket.on('typing', function (data) {
 			addChatTyping(data);
@@ -137,11 +147,31 @@ class Main
 		socket.on('stop typing', function (data) {
 			removeChatTyping(data);
 		});
+		socket.on("disconnect", function(data) {
+			trace("Unable to reach the server");
+			connected = false;
+		});
+		socket.on("connect", function(data){
+			trace("Connection");
+			if(username != null)
+				socket.emit("socket reconnect", username, function(){
+					connected = true;
+				});
+		});
 	}
 
 	function addParticipantsMessage(name: String, ?connection: Bool = true){
-		if(connection)
-			participantList.append("<li><span class='glyphicon glyphicon-user'></span>"+name+"</li>");
+		if(connection){
+			var li = new JQuery("<li/>");
+			new JQuery("<a><span class='glyphicon glyphicon-user'></span>"+name+"</a>").click(function(e){
+				if(Lib.self.textContent == username)
+					inputMessage.val("\\u ");
+				else
+					inputMessage.val("@"+Lib.self.textContent+": ");
+				inputMessage.focus();
+			}).appendTo(li);
+			participantList.append(li);
+		}
 		else
 			participantList.children("li").each(function(){
 				if(Lib.self.textContent == name)
@@ -161,6 +191,7 @@ class Main
 			currentInput = inputMessage.focus();
 			// Tell the server your username
 			socket.emit('add user', username);
+			connected = true;
 		}
 		else
 			username = null;
@@ -179,11 +210,19 @@ class Main
 				username: username,
 				message: message,
 			};
-			if(whisperRegExp.match(message))
-				data.whisperTarget = whisperRegExp.matched(1);
-			addChatMessage(data);
-			// tell server to execute 'new message' and send along one parameter
-			socket.emit('new message', message);
+			
+			if(message.startsWith("\\u")){
+				var msg = message.replace("\\u", username);
+				socket.emit("new action", msg);
+				log(msg);
+			}
+			else{
+				if(whisperRegExp.match(message))
+					data.whisperTarget = whisperRegExp.matched(1);
+				addChatMessage(data);
+				// tell server to execute 'new message' and send along one parameter
+				socket.emit('new message', message);
+			}
 		}
 	}
 
