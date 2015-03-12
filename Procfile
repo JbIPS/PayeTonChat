@@ -1,1 +1,1 @@
-web: node bin/main.js
+web: node bin/index.js
