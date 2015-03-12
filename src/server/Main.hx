@@ -25,7 +25,7 @@ class Main
 		var io = js.Node.require('socket.io').listen(server);
 
 	    // connect
-		var db: Mongoose = mongoose.connect("mongodb://localhost/chat");
+		var db: Mongoose = mongoose.connect("mongodb://ptc-log:pwdlog04@ds037551.mongolab.com:37551/heroku_app34822743");
 		var history = ChatHistoryManager.build(db, "ChatHistory");
 
 		var port = 3000;
