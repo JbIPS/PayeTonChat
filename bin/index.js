@@ -319,7 +319,7 @@ server.Main = function() {
 	var io = js.Node.require("socket.io").listen(server1);
 	var db = (Mongoose__11||require("mongoose")).mongoose.connect("mongodb://ptc-log:pwdlog04@ds037551.mongolab.com:37551/heroku_app34822743");
 	var history = server.ChatHistoryManager.build(db,"ChatHistory",null,null);
-	var port = 3000;
+	var port = process.env.PORT || 3000;
 	server1.listen(port,null,null,function() {
 		console.log("Server listening at port " + port);
 	});

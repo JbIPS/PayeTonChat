@@ -28,7 +28,7 @@ class Main
 		var db: Mongoose = mongoose.connect("mongodb://ptc-log:pwdlog04@ds037551.mongolab.com:37551/heroku_app34822743");
 		var history = ChatHistoryManager.build(db, "ChatHistory");
 
-		var port = 3000;
+		var port = untyped (process.env.PORT || 3000);
 
 		server.listen(port, function () {
 			trace('Server listening at port '+port);
