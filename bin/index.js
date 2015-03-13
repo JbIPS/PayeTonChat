@@ -317,7 +317,7 @@ server.Main = function() {
 	var app = new (Express__13||require("express"))();
 	var server1 = (Http__18||require("http")).createServer(app);
 	var io = js.Node.require("socket.io").listen(server1);
-	var db = (Mongoose__11||require("mongoose")).mongoose.connect("mongodb://localhost/chat");
+	var db = (Mongoose__11||require("mongoose")).mongoose.connect("mongodb://ptc-log:pwdlog04@ds037551.mongolab.com:37551/heroku_app34822743");
 	var history = server.ChatHistoryManager.build(db,"ChatHistory",null,null);
 	var port = 3000;
 	server1.listen(port,null,null,function() {
