@@ -7,7 +7,7 @@
     "Jean-Baptiste Richardet <jeanbaptiste.richardet@gmail.com>"
   ],
   "description": "Lightweight chat solution with Socket.IO / Node.JS",
-  "main": "dist/backnode.js",
+  "main": "bin/index.js",
   "keywords": [
     "chat"
   ],

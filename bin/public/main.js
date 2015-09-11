@@ -1,4 +1,10 @@
-(function () { "use strict";
+(function (console) { "use strict";
+function $extend(from, fields) {
+	function Inherit() {} Inherit.prototype = from; var proto = new Inherit();
+	for (var name in fields) proto[name] = fields[name];
+	if( fields.toString !== Object.prototype.toString ) proto.toString = fields.toString;
+	return proto;
+}
 var EReg = function(r,opt) {
 	opt = opt.split("u").join("");
 	this.r = new RegExp(r,opt);
@@ -12,19 +18,19 @@ EReg.prototype = {
 		return this.r.m != null;
 	}
 	,matched: function(n) {
-		if(this.r.m != null && n >= 0 && n < this.r.m.length) return this.r.m[n]; else throw "EReg::matched";
+		if(this.r.m != null && n >= 0 && n < this.r.m.length) return this.r.m[n]; else throw new js__$Boot_HaxeError("EReg::matched");
 	}
 	,matchedLeft: function() {
-		if(this.r.m == null) throw "No string matched";
-		return this.r.s.substr(0,this.r.m.index);
+		if(this.r.m == null) throw new js__$Boot_HaxeError("No string matched");
+		return HxOverrides.substr(this.r.s,0,this.r.m.index);
 	}
 	,matchedRight: function() {
-		if(this.r.m == null) throw "No string matched";
+		if(this.r.m == null) throw new js__$Boot_HaxeError("No string matched");
 		var sz = this.r.m.index + this.r.m[0].length;
-		return this.r.s.substr(sz,this.r.s.length - sz);
+		return HxOverrides.substr(this.r.s,sz,this.r.s.length - sz);
 	}
 	,matchedPos: function() {
-		if(this.r.m == null) throw "No string matched";
+		if(this.r.m == null) throw new js__$Boot_HaxeError("No string matched");
 		return { pos : this.r.m.index, len : this.r.m[0].length};
 	}
 	,matchSub: function(s,pos,len) {
@@ -84,10 +90,35 @@ HxOverrides.substr = function(s,pos,len) {
 	return s.substr(pos,len);
 };
 Math.__name__ = true;
+var Reflect = function() { };
+Reflect.__name__ = true;
+Reflect.field = function(o,field) {
+	try {
+		return o[field];
+	} catch( e ) {
+		if (e instanceof js__$Boot_HaxeError) e = e.val;
+		return null;
+	}
+};
+Reflect.fields = function(o) {
+	var a = [];
+	if(o != null) {
+		var hasOwnProperty = Object.prototype.hasOwnProperty;
+		for( var f in o ) {
+		if(f != "__id__" && f != "hx__closures__" && hasOwnProperty.call(o,f)) a.push(f);
+		}
+	}
+	return a;
+};
+Reflect.deleteField = function(o,field) {
+	if(!Object.prototype.hasOwnProperty.call(o,field)) return false;
+	delete(o[field]);
+	return true;
+};
 var Std = function() { };
 Std.__name__ = true;
 Std.string = function(s) {
-	return js.Boot.__string_rec(s,"");
+	return js_Boot.__string_rec(s,"");
 };
 Std["int"] = function(x) {
 	return x | 0;
@@ -128,30 +159,28 @@ StringTools.trim = function(s) {
 StringTools.replace = function(s,sub,by) {
 	return s.split(sub).join(by);
 };
-var client = {};
-client.Main = function() {
+var client_Main = function() {
 	this.typing = false;
 	this.connected = false;
+	this.elementData = new haxe_ds_ObjectMap();
 	this.COLORS = ["#e21400","#91580f","#f8a700","#f78b00","#58dc00","#287b00","#a8f07a","#4ae8c4","#3b88eb","#3824aa","#a700ff","#d300e7"];
-	this.TYPING_TIMER_LENGTH = 400;
-	this.FADE_TIME = 150;
 	var _g = this;
-	this.usernameInput = new jQuery(".usernameInput");
-	this.messages = new jQuery(".messages");
-	this.inputMessage = new jQuery(".inputMessage");
-	this.loginPage = new jQuery(".login.page");
-	this.chatPage = new jQuery(".chat.page");
-	this.participantList = new jQuery(".participants ul");
-	this.smileyContainer = new jQuery(".smileyContainer");
-	new jQuery(".smileyButton").click(function(e) {
-		_g.smileyContainer.fadeIn();
-	});
-	this.currentInput = this.usernameInput.focus();
+	this.usernameInput = window.document.getElementsByClassName("usernameInput")[0];
+	this.messages = window.document.getElementsByClassName("messages")[0];
+	this.inputMessage = window.document.getElementsByClassName("inputMessage")[0];
+	this.loginPage = window.document.getElementsByClassName("login page")[0];
+	this.chatPage = window.document.getElementsByClassName("chat page")[0];
+	this.participantList = window.document.querySelector(".participants ul");
+	this.smileyContainer = window.document.getElementsByClassName("smileyContainer")[0];
+	window.document.getElementsByClassName("smileyButton")[0].onclick = function(e) {
+		_g.smileyContainer.style.animation = "fadeIn " + 0.2 + "s";
+	};
+	this.currentInput = this.usernameInput;
 	this.socket = io.connect();
 	this.urlRegExp = new EReg("(\\b(https?|ftp|file)://[-A-Z0-9+&@#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|])","ig");
 	this.smileyRegExp = new EReg("(\\]:\\)|[:;][\\S]+|8\\)|:.+:|\\S\\.\\S{1,2}|<3\\)?)","g");
 	this.whisperRegExp = new EReg("^@(.+?):","");
-	new jQuery(window).keydown(function(event) {
+	window.onkeydown = function(event) {
 		if(!(event.ctrlKey || event.metaKey || event.altKey)) _g.currentInput.focus();
 		if(event.which == 13) {
 			if(_g.username != null) {
@@ -160,16 +189,16 @@ client.Main = function() {
 				_g.typing = false;
 			} else _g.setUsername();
 		}
-	});
-	this.inputMessage.on("input",function(_) {
+	};
+	this.inputMessage.oninput = function(_) {
 		if(this.value.charAt(0) != "@") _g.updateTyping();
-	});
-	this.loginPage.click(function() {
+	};
+	this.loginPage.onclick = function() {
 		_g.currentInput.focus();
-	});
-	this.inputMessage.click(function() {
+	};
+	this.inputMessage.onclick = function() {
 		_g.inputMessage.focus();
-	});
+	};
 	this.socket.on("login",function(data) {
 		var message = "Bienvenue sur PayeTonChat !";
 		_g.log(message,{ prepend : true});
@@ -229,41 +258,54 @@ client.Main = function() {
 		});
 	});
 };
-client.Main.__name__ = true;
-client.Main.main = function() {
-	new client.Main();
+client_Main.__name__ = true;
+client_Main.main = function() {
+	new client_Main();
 };
-client.Main.prototype = {
+client_Main.prototype = {
 	addParticipantsMessage: function(name,connection) {
 		if(connection == null) connection = true;
 		var _g = this;
 		if(connection) {
-			var li = new jQuery("<li/>");
-			new jQuery("<a><span class='glyphicon glyphicon-user'></span>" + name + "</a>").click(function(e) {
-				if(this.textContent == _g.username) _g.inputMessage.val("\\u "); else _g.inputMessage.val("@" + Std.string(this.textContent) + ": ");
+			var li = window.document.createElement("li");
+			var participant = window.document.createElement("a");
+			participant.innerHTML = "<span class=\"glyphicon glyphicon-user\"></span>" + name + "</a>";
+			participant.onclick = function(e) {
+				if(this.textContent == _g.username) _g.inputMessage.value = "\\u "; else _g.inputMessage.value = "@" + Std.string(this.textContent) + ": ";
 				_g.inputMessage.focus();
-			}).appendTo(li);
-			this.participantList.append(li);
-		} else this.participantList.children("li").each(function() {
-			if(this.textContent == name) this.remove();
-		});
+			};
+			li.appendChild(participant);
+			this.participantList.appendChild(li);
+		} else {
+			var _g1 = 0;
+			var _g11 = this.participantList.children;
+			while(_g1 < _g11.length) {
+				var child = _g11[_g1];
+				++_g1;
+				if(child.tagName == "li" && this.textContent == name) this.remove();
+			}
+		}
 	}
 	,setUsername: function() {
-		this.username = this.cleanInput(StringTools.trim(this.usernameInput.val()));
+		var _g = this;
+		this.username = this.cleanInput(StringTools.trim(this.usernameInput.value));
 		if(this.username != "") {
-			this.loginPage.fadeOut();
-			this.chatPage.show();
-			this.loginPage.off("click");
-			this.currentInput = this.inputMessage.focus();
+			this.loginPage.addEventListener("animationend",function(_) {
+				_g.loginPage.style.display = "none";
+			});
+			this.loginPage.style.animation = "fadeOut " + 0.2 + "s";
+			this.chatPage.style.display = "block";
+			this.loginPage.onclick = null;
+			this.currentInput = this.inputMessage;
 			this.socket.emit("add user",this.username);
 			this.connected = true;
 		} else this.username = null;
 	}
 	,sendMessage: function() {
-		var message = this.inputMessage.val();
+		var message = this.inputMessage.value;
 		message = this.cleanInput(message);
 		if(message != null && this.connected) {
-			this.inputMessage.val("");
+			this.inputMessage.value = "";
 			var data = { username : this.username, message : message};
 			if(StringTools.startsWith(message,"\\u")) {
 				var msg = StringTools.replace(message,"\\u",this.username);
@@ -277,17 +319,22 @@ client.Main.prototype = {
 		}
 	}
 	,log: function(message,options) {
-		var el = new jQuery("<li>").addClass("log").text(message);
+		var el = window.document.createElement("li");
+		el.classList.add("log");
+		el.textContent = message;
 		this.addMessageElement(el,options);
 	}
 	,addChatMessage: function(data,options) {
 		var typingMessages = this.getTypingMessages(data);
-		if(options == null) options = { };
-		if(typingMessages.length != 0) {
+		if(options == null) {
+			options = { };
 			options.fade = false;
-			typingMessages.remove();
+			if(typingMessages != null) typingMessages.remove();
 		}
-		var usernameDiv = new jQuery("<span class=\"username\"/>").text(data.username).css("color",this.getUsernameColor(data.username));
+		var usernameDiv = window.document.createElement("span");
+		usernameDiv.classList.add("username");
+		usernameDiv.textContent = data.username;
+		usernameDiv.style.color = this.getUsernameColor(data.username);
 		if(this.whisperRegExp.match(data.message)) {
 			data.message = this.whisperRegExp.replace(data.message,"");
 			if(Object.prototype.hasOwnProperty.call(data,"whisperTarget") && data.whisperTarget != null) data.message = Std.string(data.whisperTarget) + " > " + Std.string(data.message);
@@ -365,11 +412,18 @@ client.Main.prototype = {
 			}
 			msg += this.urlRegExp.matchedRight();
 		}
-		var messageBodyDiv = new jQuery("<span class=\"messageBody\">" + msg + "</span>");
-		var typingClass;
-		if(data.typing) typingClass = "typing"; else typingClass = "";
-		var messageDiv = new jQuery("<li class=\"message\"/>").data("username",data.username).addClass(typingClass).append(usernameDiv).append(messageBodyDiv);
-		if(Object.prototype.hasOwnProperty.call(options,"type")) messageDiv.addClass(options.type);
+		var messageBodyDiv = window.document.createElement("span");
+		messageBodyDiv.classList.add("messageBody");
+		messageBodyDiv.textContent = msg;
+		var messageDiv = window.document.createElement("li");
+		messageDiv.classList.add("message");
+		if(data.typing) messageDiv.classList.add("typing");
+		var v = data.username;
+		this.elementData.set(messageDiv,v);
+		v;
+		messageDiv.appendChild(usernameDiv);
+		messageDiv.appendChild(messageBodyDiv);
+		if(Object.prototype.hasOwnProperty.call(options,"type")) messageDiv.classList.add(options.type);
 		this.addMessageElement(messageDiv,options);
 	}
 	,addChatTyping: function(data) {
@@ -378,20 +432,21 @@ client.Main.prototype = {
 		this.addChatMessage(data);
 	}
 	,removeChatTyping: function(data) {
-		this.getTypingMessages(data).fadeOut(null,function() {
-			new jQuery(this).remove();
+		var msg = this.getTypingMessages(data);
+		msg.addEventListener("animationend",function(_) {
+			msg.remove();
 		});
 	}
 	,addMessageElement: function(el,options) {
 		if(options == null) options = { };
 		if(options.fade == null) options.fade = true;
 		if(options.prepend == null) options.prepend = false;
-		if(options.fade) el.hide().fadeIn(this.FADE_TIME);
-		if(options.prepend) this.messages.prepend(el); else this.messages.append(el);
-		this.messages[0].scrollTop = this.messages[0].scrollHeight;
+		if(options.fade) el.style.animation = "fadeIn " + 0.2 + "s";
+		if(options.prepend) this.messages.insertBefore(el,this.messages.children[0]); else this.messages.appendChild(el);
+		this.messages.scrollTop = this.messages.scrollHeight;
 	}
 	,cleanInput: function(input) {
-		return new jQuery("<div/>").text(input).text();
+		return window.document.createElement("div").textContent = input;
 	}
 	,updateTyping: function() {
 		var _g = this;
@@ -400,21 +455,22 @@ client.Main.prototype = {
 				this.typing = true;
 				this.socket.emit("typing");
 			}
-			this.lastTypingTime = haxe.Timer.stamp();
+			this.lastTypingTime = haxe_Timer.stamp();
 			window.setTimeout(function() {
-				var typingTimer = haxe.Timer.stamp();
+				var typingTimer = haxe_Timer.stamp();
 				var timeDiff = typingTimer - _g.lastTypingTime;
-				if(timeDiff >= _g.TYPING_TIMER_LENGTH && _g.typing) {
+				if(timeDiff >= 400 && _g.typing) {
 					_g.socket.emit("stop typing");
 					_g.typing = false;
 				}
-			},this.TYPING_TIMER_LENGTH);
+			},400);
 		}
 	}
 	,getTypingMessages: function(data) {
-		return new jQuery(".typing.message").filter(function(i,elem) {
-			return new jQuery(this).data("username") == data.username;
-		});
+		var allMsg = window.document.getElementsByClassName("typing message");
+		var i = 0;
+		while(i < allMsg.length && this.elementData.h[allMsg[i].__id__] != data.username) i++;
+		if(i < allMsg.length) return allMsg[i]; else return null;
 	}
 	,getUsernameColor: function(username) {
 		var hash = 7;
@@ -428,16 +484,39 @@ client.Main.prototype = {
 		return this.COLORS[index];
 	}
 };
-var haxe = {};
-haxe.Timer = function() { };
-haxe.Timer.__name__ = true;
-haxe.Timer.stamp = function() {
+var haxe_IMap = function() { };
+haxe_IMap.__name__ = true;
+var haxe_Timer = function() { };
+haxe_Timer.__name__ = true;
+haxe_Timer.stamp = function() {
 	return new Date().getTime() / 1000;
 };
-var js = {};
-js.Boot = function() { };
-js.Boot.__name__ = true;
-js.Boot.__string_rec = function(o,s) {
+var haxe_ds_ObjectMap = function() {
+	this.h = { };
+	this.h.__keys__ = { };
+};
+haxe_ds_ObjectMap.__name__ = true;
+haxe_ds_ObjectMap.__interfaces__ = [haxe_IMap];
+haxe_ds_ObjectMap.prototype = {
+	set: function(key,value) {
+		var id = key.__id__ || (key.__id__ = ++haxe_ds_ObjectMap.count);
+		this.h[id] = value;
+		this.h.__keys__[id] = key;
+	}
+};
+var js__$Boot_HaxeError = function(val) {
+	Error.call(this);
+	this.val = val;
+	this.message = String(val);
+	if(Error.captureStackTrace) Error.captureStackTrace(this,js__$Boot_HaxeError);
+};
+js__$Boot_HaxeError.__name__ = true;
+js__$Boot_HaxeError.__super__ = Error;
+js__$Boot_HaxeError.prototype = $extend(Error.prototype,{
+});
+var js_Boot = function() { };
+js_Boot.__name__ = true;
+js_Boot.__string_rec = function(o,s) {
 	if(o == null) return "null";
 	if(s.length >= 5) return "<...>";
 	var t = typeof(o);
@@ -447,24 +526,24 @@ js.Boot.__string_rec = function(o,s) {
 		if(o instanceof Array) {
 			if(o.__enum__) {
 				if(o.length == 2) return o[0];
-				var str = o[0] + "(";
+				var str2 = o[0] + "(";
 				s += "\t";
 				var _g1 = 2;
 				var _g = o.length;
 				while(_g1 < _g) {
-					var i = _g1++;
-					if(i != 2) str += "," + js.Boot.__string_rec(o[i],s); else str += js.Boot.__string_rec(o[i],s);
+					var i1 = _g1++;
+					if(i1 != 2) str2 += "," + js_Boot.__string_rec(o[i1],s); else str2 += js_Boot.__string_rec(o[i1],s);
 				}
-				return str + ")";
+				return str2 + ")";
 			}
 			var l = o.length;
-			var i1;
+			var i;
 			var str1 = "[";
 			s += "\t";
 			var _g2 = 0;
 			while(_g2 < l) {
 				var i2 = _g2++;
-				str1 += (i2 > 0?",":"") + js.Boot.__string_rec(o[i2],s);
+				str1 += (i2 > 0?",":"") + js_Boot.__string_rec(o[i2],s);
 			}
 			str1 += "]";
 			return str1;
@@ -473,14 +552,15 @@ js.Boot.__string_rec = function(o,s) {
 		try {
 			tostr = o.toString;
 		} catch( e ) {
+			if (e instanceof js__$Boot_HaxeError) e = e.val;
 			return "???";
 		}
-		if(tostr != null && tostr != Object.toString) {
+		if(tostr != null && tostr != Object.toString && typeof(tostr) == "function") {
 			var s2 = o.toString();
 			if(s2 != "[object Object]") return s2;
 		}
 		var k = null;
-		var str2 = "{\n";
+		var str = "{\n";
 		s += "\t";
 		var hasp = o.hasOwnProperty != null;
 		for( var k in o ) {
@@ -490,12 +570,12 @@ js.Boot.__string_rec = function(o,s) {
 		if(k == "prototype" || k == "__class__" || k == "__super__" || k == "__interfaces__" || k == "__properties__") {
 			continue;
 		}
-		if(str2.length != 2) str2 += ", \n";
-		str2 += s + k + " : " + js.Boot.__string_rec(o[k],s);
+		if(str.length != 2) str += ", \n";
+		str += s + k + " : " + js_Boot.__string_rec(o[k],s);
 		}
 		s = s.substring(1);
-		str2 += "\n" + s + "}";
-		return str2;
+		str += "\n" + s + "}";
+		return str;
 	case "function":
 		return "<function>";
 	case "string":
@@ -504,31 +584,31 @@ js.Boot.__string_rec = function(o,s) {
 		return String(o);
 	}
 };
-js.Lib = function() { };
-js.Lib.__name__ = true;
-js.Lib.debug = function() {
-	debugger;
+var js_support__$DynamicObject_DynamicObject_$Impl_$ = {};
+js_support__$DynamicObject_DynamicObject_$Impl_$.__name__ = true;
+js_support__$DynamicObject_DynamicObject_$Impl_$._new = function() {
+	return { };
 };
-js.Lib["eval"] = function(code) {
-	return eval(code);
+js_support__$DynamicObject_DynamicObject_$Impl_$.get = function(this1,key) {
+	return Reflect.field(this1,key);
 };
-js.Lib.get_arguments = function() {
-	return arguments;
+js_support__$DynamicObject_DynamicObject_$Impl_$.set = function(this1,key,value) {
+	this1[key] = value;
 };
-js.Lib.get_self = function() {
-	return this;
+js_support__$DynamicObject_DynamicObject_$Impl_$.exists = function(this1,key) {
+	return Object.prototype.hasOwnProperty.call(this1,key);
 };
-Math.NaN = Number.NaN;
-Math.NEGATIVE_INFINITY = Number.NEGATIVE_INFINITY;
-Math.POSITIVE_INFINITY = Number.POSITIVE_INFINITY;
-Math.isFinite = function(i) {
-	return isFinite(i);
+js_support__$DynamicObject_DynamicObject_$Impl_$.remove = function(this1,key) {
+	return Reflect.deleteField(this1,key);
 };
-Math.isNaN = function(i1) {
-	return isNaN(i1);
+js_support__$DynamicObject_DynamicObject_$Impl_$.keys = function(this1) {
+	return Reflect.fields(this1);
 };
 String.__name__ = true;
 Array.__name__ = true;
 Date.__name__ = ["Date"];
-client.Main.main();
-})();
+client_Main.FADE_TIME = 0.2;
+client_Main.TYPING_TIMER_LENGTH = 400;
+haxe_ds_ObjectMap.count = 0;
+client_Main.main();
+})(typeof console != "undefined" ? console : {log:function(){}});
